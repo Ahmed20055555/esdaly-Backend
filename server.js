@@ -74,6 +74,14 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Root Route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Welcome to ESDALY API',
+    docs: '/api/health'
+  });
+});
+
 // Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -98,7 +106,11 @@ if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  }).on('error', (err) => {
+    console.error('❌ Server startup error:', err);
   });
+} else {
+  console.log('✅ App initialized for Vercel environment');
 }
 
 export default app;
