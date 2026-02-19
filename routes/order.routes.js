@@ -1,0 +1,281 @@
+import express from 'express';
+import { body, validationResult } from 'express-validator';
+import Order from '../models/Order.model.js';
+import Product from '../models/Product.model.js';
+import { protect, authorize } from '../middleware/auth.middleware.js';
+
+const router = express.Router();
+
+// @route   GET /api/orders
+// @desc    Get all orders (user's orders or all orders for admin)
+// @access  Private
+router.get('/', protect, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const filter = req.user.role === 'admin' ? {} : { user: req.user._id };
+
+    const orders = await Order.find(filter)
+      .populate('user', 'name email')
+      .populate('items.product', 'name images price')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const total = await Order.countDocuments(filter);
+
+    res.json({
+      success: true,
+      count: orders.length,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      orders
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب الطلبات',
+      error: error.message
+    });
+  }
+});
+
+// @route   GET /api/orders/:id
+// @desc    Get single order
+// @access  Private
+router.get('/:id', protect, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name email phone')
+      .populate('items.product', 'name images price');
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'الطلب غير موجود'
+      });
+    }
+
+    // Check if user owns the order or is admin
+    if (order.user._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'ليس لديك صلاحية للوصول إلى هذا الطلب'
+      });
+    }
+
+    res.json({
+      success: true,
+      order
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في جلب الطلب',
+      error: error.message
+    });
+  }
+});
+
+// @route   POST /api/orders
+// @desc    Create new order
+// @access  Private
+router.post('/', protect, [
+  body('items').isArray({ min: 1 }).withMessage('يجب إضافة منتج واحد على الأقل'),
+  body('shippingAddress').notEmpty().withMessage('عنوان الشحن مطلوب'),
+  body('pricing.total').isFloat({ min: 0 }).withMessage('المجموع الكلي مطلوب')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
+      });
+    }
+
+    const { items, shippingAddress, billingAddress, pricing, payment, notes } = req.body;
+
+    // Validate products and calculate totals
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product || !product.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: `المنتج ${item.name || product?.name} غير موجود أو غير متاح`
+        });
+      }
+
+      // Check stock (مع دعم منتجات قديمة بدون stock)
+      const stock = product.stock || {};
+      const trackInventory = stock.trackInventory !== false;
+      const quantityAvailable = typeof stock.quantity === 'number' ? stock.quantity : 0;
+      if (trackInventory && quantityAvailable < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `الكمية المتاحة من ${product.name} غير كافية (المتوفر: ${quantityAvailable})`
+        });
+      }
+
+      const itemPrice = product.price;
+      const itemTotal = itemPrice * item.quantity;
+      subtotal += itemTotal;
+
+      orderItems.push({
+        product: product._id,
+        name: product.name,
+        price: itemPrice,
+        quantity: item.quantity,
+        image: product.images[0]?.url || '',
+        variant: item.variant || null
+      });
+    }
+
+    const shippingAmount = pricing.shipping || 0;
+    const taxAmount = pricing.tax || 0;
+    const discountAmount = pricing.discount || 0;
+    const totalAmount = Math.max(0, subtotal + shippingAmount + taxAmount - discountAmount);
+    const finalPricing = {
+      subtotal: pricing.subtotal ?? subtotal,
+      shipping: shippingAmount,
+      tax: taxAmount,
+      discount: discountAmount,
+      total: pricing.total ?? totalAmount
+    };
+
+    // توليد رقم الطلب قبل الإنشاء (لتفادي أن يعمل التحقق قبل pre('save'))
+    const date = new Date();
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const orderNumber = `ORD-${y}${m}${d}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`.toUpperCase();
+
+    // Create order
+    const order = await Order.create({
+      orderNumber,
+      user: req.user._id,
+      items: orderItems,
+      shippingAddress,
+      billingAddress: billingAddress || shippingAddress,
+      pricing: finalPricing,
+      payment: {
+        method: payment?.method || 'cash',
+        status: 'pending',
+        ...(payment?.transactionId && { transactionId: payment.transactionId })
+      },
+      notes: notes || undefined
+    });
+
+    // تقليل مخزون كل منتج مضاف في الطلب
+    for (const item of items) {
+      const product = await Product.findById(item.product);
+      if (!product) continue;
+
+      const trackInventory = product.stock?.trackInventory !== false;
+      if (!trackInventory) continue;
+
+      const currentQty = typeof product.stock?.quantity === 'number' ? product.stock.quantity : 0;
+      product.stock.quantity = Math.max(0, currentQty - item.quantity);
+
+      if (product.sales) {
+        product.sales.count = (product.sales.count || 0) + item.quantity;
+        product.sales.revenue = (product.sales.revenue || 0) + (product.price || 0) * item.quantity;
+      }
+      await product.save();
+    }
+
+    const populatedOrder = await Order.findById(order._id)
+      .populate('items.product', 'name images price')
+      .populate('user', 'name email');
+
+    res.status(201).json({
+      success: true,
+      message: 'تم إنشاء الطلب بنجاح',
+      order: populatedOrder
+    });
+  } catch (error) {
+    console.error('Order create error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في إنشاء الطلب',
+      error: error.message
+    });
+  }
+});
+
+// @route   PUT /api/orders/:id/status
+// @desc    Update order status
+// @access  Private/Admin
+router.put('/:id/status', protect, authorize('admin'), [
+  body('status').isIn(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']).withMessage('حالة الطلب غير صحيحة')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        errors: errors.array()
+      });
+    }
+
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'الطلب غير موجود'
+      });
+    }
+
+    const { status, trackingNumber, estimatedDelivery } = req.body;
+
+    order.status = status;
+
+    if (status === 'shipped' && !order.shipping.shippedAt) {
+      order.shipping.shippedAt = new Date();
+    }
+
+    if (status === 'delivered' && !order.shipping.deliveredAt) {
+      order.shipping.deliveredAt = new Date();
+    }
+
+    if (status === 'cancelled' && !order.cancelledAt) {
+      order.cancelledAt = new Date();
+      // Restore stock
+      for (const item of order.items) {
+        const product = await Product.findById(item.product);
+        if (product && product.stock.trackInventory) {
+          product.stock.quantity += item.quantity;
+          product.sales.count -= item.quantity;
+          product.sales.revenue -= item.price * item.quantity;
+          await product.save();
+        }
+      }
+    }
+
+    if (trackingNumber) order.shipping.trackingNumber = trackingNumber;
+    if (estimatedDelivery) order.shipping.estimatedDelivery = new Date(estimatedDelivery);
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: 'تم تحديث حالة الطلب بنجاح',
+      order
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في تحديث حالة الطلب',
+      error: error.message
+    });
+  }
+});
+
+export default router;
