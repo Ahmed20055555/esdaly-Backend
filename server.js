@@ -21,6 +21,12 @@ import statsRoutes from './routes/stats.routes.js';
 // Load environment variables
 dotenv.config();
 
+// Vercel Detection
+const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL;
+if (isVercel) {
+  process.env.NODE_ENV = 'production';
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -48,9 +54,28 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 }));
 
 // Database Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/esdaly')
-  .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
+if (!process.env.MONGODB_URI) {
+  console.error('❌ MONGODB_URI is not defined in environment variables');
+}
+
+const connectDB = async () => {
+  try {
+    if (mongoose.connection.readyState >= 1) return;
+
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+    console.log('✅ MongoDB Connected Successfully');
+  } catch (err) {
+    console.error('❌ MongoDB Connection Error:', err);
+    // On Vercel, we don't want to crash the whole process immediately, 
+    // but the function will fail when it tries to use the connection.
+  }
+};
+
+// Initial connection attempt
+connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -100,8 +125,8 @@ app.use((req, res) => {
   });
 });
 
-// Only start server in development (Vercel handles this in production)
-if (process.env.NODE_ENV !== 'production') {
+// Only start server in development (Vercel/Serverless handles this automatically)
+if (!isVercel && process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
@@ -110,7 +135,7 @@ if (process.env.NODE_ENV !== 'production') {
     console.error('❌ Server startup error:', err);
   });
 } else {
-  console.log('✅ App initialized for Vercel environment');
+  console.log(`✅ App initialized for ${isVercel ? 'Vercel' : 'Production'} environment`);
 }
 
 export default app;
