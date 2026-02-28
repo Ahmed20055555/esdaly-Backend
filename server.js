@@ -32,9 +32,24 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Middleware
+// Allow multiple origins for CORS
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://esdaly-frontend.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.some(o => origin.includes('vercel.app'))) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now during development
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -44,7 +59,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   setHeaders: (res, path) => {
     // Allow CORS for images
-    res.set('Access-Control-Allow-Origin', process.env.FRONTEND_URL || 'http://localhost:3000');
+    res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Credentials', 'true');
     // Cache images for 1 year
     if (path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.png') || path.endsWith('.gif') || path.endsWith('.webp')) {
