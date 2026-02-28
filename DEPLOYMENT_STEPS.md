@@ -15,14 +15,27 @@
 
 | Key | Value |
 | :--- | :--- |
-| `MONGODB_URI` | `mongodb+srv://adminsara:adminsara@cluster0.aqhjfqt.mongodb.net/?appName=Cluster0` |
+| `MONGODB_URI` | `mongodb+srv://esdalyUser:esdaly123@cluster0.aqhjfqt.mongodb.net/?retryWrites=true&w=majority` |
 | `JWT_SECRET` | `esdaly_super_secret_jwt_key_2024` (يفضل تغييره لسلسلة عشوائية) |
 | `JWT_EXPIRE` | `7d` |
 | `FRONTEND_URL` | `https://esdaly-frontend.vercel.app/` |
 | `NODE_ENV` | `production` |
 | `PORT` | `5000` |
 
-## 4. إعدادات MongoDB Atlas
+## 4. كيف يفرق المشروع بين المحلي (Local) واللايف (Production)؟
+
+أنت لست بحاجة لتغيير الكود عند الرفع، الكود مصمم ليعمل كالتالي:
+
+*   **في جهازك:** يستخدم القيم الموجودة في ملف `.env` (مثل `localhost:5005`).
+*   **على Vercel:** يستخدم القيم التي ستضعها أنت في **Environment Variables** بلوحة التحكم.
+
+| المتغير | القيمة التي تضعها في Vercel (Production) |
+| :--- | :--- |
+| `FRONTEND_URL` | رابط موقعك (https://esdaly-frontend.vercel.app) |
+| `MONGODB_URI` | رابط الـ MongoDB الحقيقي |
+| `NEXT_PUBLIC_API_URL` | رابط الـ API الخاص بالباك إند بعد الرفع متبوعاً بـ `/api` |
+
+## 5. إعدادات MongoDB Atlas
 تأكد من أن الـ Database الخاصة بك تسمح بالاتصال من Vercel:
 1. في MongoDB Atlas، اذهب إلى **Network Access**.
 2. تأكد من وجود العنوان `0.0.0.0/0` (Allow Access from Anywhere).
