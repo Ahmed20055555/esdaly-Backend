@@ -6,17 +6,23 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Create uploads directory if it doesn't exist
+// Create uploads directory if it doesn't exist (skip on Vercel/Production)
 const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+
+if (!isProduction && !fs.existsSync(uploadDir)) {
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  } catch (err) {
+    console.warn('⚠️ Could not create upload directory:', err.message);
+  }
 }
 
 // Storage configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     let uploadPath = uploadDir;
-    
+
     // Different folders for different file types
     if (file.fieldname === 'avatar') {
       uploadPath = path.join(uploadDir, 'avatars');
@@ -27,11 +33,15 @@ const storage = multer.diskStorage({
     } else if (file.fieldname === 'review') {
       uploadPath = path.join(uploadDir, 'reviews');
     }
-    
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
+
+    if (!isProduction && !fs.existsSync(uploadPath)) {
+      try {
+        fs.mkdirSync(uploadPath, { recursive: true });
+      } catch (err) {
+        console.warn('⚠️ Could not create upload sub-directory:', err.message);
+      }
     }
-    
+
     cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
