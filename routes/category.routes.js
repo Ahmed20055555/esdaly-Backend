@@ -92,7 +92,8 @@ router.post('/', protect, authorize('admin'), upload.single('image'), [
     res.status(500).json({
       success: false,
       message: 'خطأ في إنشاء الفئة',
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
