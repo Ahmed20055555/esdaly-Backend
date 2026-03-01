@@ -144,11 +144,17 @@ app.get('/', (req, res) => {
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('❌ Global Error Handler:', err.message);
+  if (err.stack) console.error(err.stack);
+
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...((process.env.NODE_ENV === 'development' || process.env.VERCEL) && {
+      error: err.message,
+      stack: err.stack,
+      hint: 'هذا الخطأ يظهر فقط في بيئة التطوير أو Vercel للمساعدة في الحل'
+    })
   });
 });
 
