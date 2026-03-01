@@ -2,6 +2,7 @@ import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { storage as cloudinaryStorage } from './cloudinary.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,8 +19,8 @@ if (!isProduction && !fs.existsSync(uploadDir)) {
   }
 }
 
-// Storage configuration
-const storage = multer.diskStorage({
+// Storage configuration for Local Development
+const localStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     let uploadPath = uploadDir;
 
@@ -51,6 +52,9 @@ const storage = multer.diskStorage({
   }
 });
 
+// Use Cloudinary in Production, Local in Development
+const selectedStorage = isProduction ? cloudinaryStorage : localStorage;
+
 // File filter
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|gif|webp/;
@@ -64,18 +68,17 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Upload configuration
+// Upload configurations
 export const upload = multer({
-  storage: storage,
+  storage: selectedStorage,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB
   },
   fileFilter: fileFilter
 });
 
-// Multiple file upload
 export const uploadMultiple = multer({
-  storage: storage,
+  storage: selectedStorage,
   limits: {
     fileSize: 5 * 1024 * 1024,
     files: 10

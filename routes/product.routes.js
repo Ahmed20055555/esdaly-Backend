@@ -28,14 +28,14 @@ router.get('/', [
 
     // Build filter
     const filter = { isActive: true };
-    
+
     if (req.query.category) {
       filter.category = req.query.category;
     }
     if (req.query.featured === 'true' || req.query.featured === '1') {
       filter.isFeatured = true;
     }
-    
+
     if (req.query.minPrice || req.query.maxPrice) {
       filter.price = {};
       if (req.query.minPrice) filter.price.$gte = parseFloat(req.query.minPrice);
@@ -167,15 +167,15 @@ router.get('/:id', async (req, res) => {
     // جلب التقييمات بشكل منفصل لتجنب الأخطاء
     try {
       const Review = (await import('../models/Review.model.js')).default;
-      const reviews = await Review.find({ 
-        product: req.params.id, 
-        isApproved: true 
+      const reviews = await Review.find({
+        product: req.params.id,
+        isApproved: true
       })
         .populate('user', 'name avatar')
         .sort({ createdAt: -1 })
         .limit(10)
         .lean();
-      
+
       product.reviews = reviews || [];
     } catch (reviewError) {
       console.error('Error fetching reviews:', reviewError);
@@ -221,7 +221,7 @@ router.post('/', protect, authorize('admin'), uploadMultiple.array('images', 10)
     if (!categoryId) {
       // البحث عن فئة افتراضية أو إنشاء واحدة
       let defaultCategory = await Category.findOne({ name: 'عام' });
-      
+
       if (!defaultCategory) {
         defaultCategory = await Category.create({
           name: 'عام',
@@ -235,7 +235,7 @@ router.post('/', protect, authorize('admin'), uploadMultiple.array('images', 10)
 
     // Handle images
     const images = req.files?.map((file, index) => ({
-      url: `/uploads/products/${file.filename}`,
+      url: file.path || `/uploads/products/${file.filename}`,
       alt: name,
       isPrimary: index === 0
     })) || [];
@@ -254,7 +254,7 @@ router.post('/', protect, authorize('admin'), uploadMultiple.array('images', 10)
       trackInventory: true,
       lowStockThreshold: 10
     };
-    
+
     if (stock) {
       try {
         if (typeof stock === 'string') {

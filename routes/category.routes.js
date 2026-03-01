@@ -76,7 +76,7 @@ router.post('/', protect, authorize('admin'), upload.single('image'), [
       name,
       nameEn,
       description,
-      image: (req.file && typeof req.file.filename === 'string' && req.file.filename.trim() !== '') ? `/uploads/categories/${req.file.filename}` : '',
+      image: req.file ? (req.file.path || `/uploads/categories/${req.file.filename}`) : '',
       parentCategory: parentCategory || null,
       order: order || 0,
       isActive: true
