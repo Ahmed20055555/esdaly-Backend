@@ -10,6 +10,16 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// Debug config (masked)
+console.log('☁️ Cloudinary Configuration Check:');
+console.log('- Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME || '❌ MISSING');
+if (process.env.CLOUDINARY_API_KEY) {
+    console.log('- API Key: ✅ DEFINED (starts with ' + process.env.CLOUDINARY_API_KEY.substring(0, 4) + '...)');
+} else {
+    console.log('- API Key: ❌ MISSING');
+}
+console.log('- API Secret:', process.env.CLOUDINARY_API_SECRET ? '✅ DEFINED' : '❌ MISSING');
+
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
     params: async (req, file) => {
