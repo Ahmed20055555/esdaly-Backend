@@ -68,29 +68,49 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
   }
 }));
 
-// Database Connection
-if (!process.env.MONGODB_URI) {
-  console.error('❌ MONGODB_URI is not defined in environment variables');
-}
+// Database Connection with Caching for Serverless
+let cachedConnection = null;
 
 const connectDB = async () => {
-  try {
-    if (mongoose.connection.readyState >= 1) return;
+  if (cachedConnection && mongoose.connection.readyState >= 1) {
+    return cachedConnection;
+  }
 
-    await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000,
+  try {
+    const opts = {
+      serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
-    });
+      family: 4, // Force IPv4 to avoid potential DNS issues
+    };
+
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+
+    console.log('⏳ Connecting to MongoDB...');
+    cachedConnection = await mongoose.connect(process.env.MONGODB_URI, opts);
     console.log('✅ MongoDB Connected Successfully');
+    return cachedConnection;
   } catch (err) {
-    console.error('❌ MongoDB Connection Error:', err);
-    // On Vercel, we don't want to crash the whole process immediately, 
-    // but the function will fail when it tries to use the connection.
+    console.error('❌ MongoDB Connection Error:', err.message);
+    cachedConnection = null;
+    throw err;
   }
 };
 
-// Initial connection attempt
-connectDB();
+// Middleware to ensure DB connection before processing requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(503).json({
+      success: false,
+      message: 'الخدمة غير متوفرة حالياً بسبب فشل الاتصال بقاعدة البيانات',
+      error: isVercel ? 'Database Connection Error' : err.message
+    });
+  }
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
