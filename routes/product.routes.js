@@ -232,7 +232,6 @@ router.post('/', protect, authorize('admin'), uploadMultiple.array('images', 10)
       }
       categoryId = defaultCategory._id.toString();
     }
-
     // Handle images
     const images = req.files?.map((file, index) => ({
       url: file.path || `/uploads/products/${file.filename}`,
