@@ -41,15 +41,7 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.some(o => origin.includes('vercel.app'))) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all for now during development
-    }
-  },
+  origin: true, // Allow all origins for debugging live site issues
   credentials: true
 }));
 app.use(express.json());

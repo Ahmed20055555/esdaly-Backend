@@ -58,10 +58,27 @@ router.get('/:id', async (req, res) => {
 // @route   POST /api/categories
 // @desc    Create new category
 // @access  Private/Admin
-router.post('/', protect, authorize('admin'), upload.single('image'), [
+router.post('/', protect, authorize('admin'), (req, res, next) => {
+  console.log('⏳ Starting category upload process...');
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      console.error('❌ Multer/Cloudinary Upload Error:', err);
+      return res.status(500).json({
+        success: false,
+        message: 'خطأ في رفع الصورة',
+        error: err.message,
+        details: err.code || 'UNKNOWN_MULTER_ERROR',
+        stack: process.env.VERCEL ? err.stack : undefined
+      });
+    }
+    console.log('✅ Image upload stage completed');
+    next();
+  });
+}, [
   body('name').trim().notEmpty().withMessage('اسم الفئة مطلوب')
 ], async (req, res) => {
   try {
+    console.log('⏳ Processing category database creation...');
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
@@ -81,6 +98,8 @@ router.post('/', protect, authorize('admin'), upload.single('image'), [
       order: order || 0,
       isActive: true
     });
+
+    console.log('✅ Category document created:', name);
 
     res.status(201).json({
       success: true,
