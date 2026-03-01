@@ -201,11 +201,12 @@ router.post('/', protect, [
       order: populatedOrder
     });
   } catch (error) {
-    console.error('Order create error:', error);
+    console.error('❌ Order Creation Failure:', error);
     res.status(500).json({
       success: false,
-      message: 'خطأ في إنشاء الطلب',
-      error: error.message
+      message: 'خطأ في إنشاء الطلب على السيرفر',
+      error: error.message,
+      stack: process.env.VERCEL ? error.stack : undefined
     });
   }
 });
