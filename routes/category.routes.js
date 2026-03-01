@@ -63,11 +63,18 @@ router.post('/', protect, authorize('admin'), (req, res, next) => {
   upload.single('image')(req, res, (err) => {
     if (err) {
       console.error('❌ Multer/Cloudinary Upload Error:', err);
+      const missingVars = [];
+      if (!process.env.CLOUDINARY_CLOUD_NAME) missingVars.push('CLOUDINARY_CLOUD_NAME');
+      if (!process.env.CLOUDINARY_API_KEY) missingVars.push('CLOUDINARY_API_KEY');
+      if (!process.env.CLOUDINARY_API_SECRET) missingVars.push('CLOUDINARY_API_SECRET');
+
       return res.status(500).json({
         success: false,
-        message: 'خطأ في رفع الصورة',
+        message: 'خطأ في رفع الصورة لجزء التخزين السحابي',
         error: err.message,
         details: err.code || 'UNKNOWN_MULTER_ERROR',
+        missingConfig: missingVars.length > 0 ? missingVars : undefined,
+        hint: missingVars.length > 0 ? `يرجى إضافة المتغيرات التالية في إعدادات Vercel: ${missingVars.join(', ')}` : 'تأكد من صحة بيانات Cloudinary في Vercel',
         fullError: JSON.parse(JSON.stringify(err, Object.getOwnPropertyNames(err))),
         stack: process.env.VERCEL ? err.stack : undefined
       });
