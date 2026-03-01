@@ -68,6 +68,7 @@ router.post('/', protect, authorize('admin'), (req, res, next) => {
         message: 'خطأ في رفع الصورة',
         error: err.message,
         details: err.code || 'UNKNOWN_MULTER_ERROR',
+        fullError: JSON.parse(JSON.stringify(err, Object.getOwnPropertyNames(err))),
         stack: process.env.VERCEL ? err.stack : undefined
       });
     }
