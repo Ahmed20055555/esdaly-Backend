@@ -107,7 +107,7 @@ const orderSchema = new mongoose.Schema({
 });
 
 // Generate order number before saving (فريد حتى مع الطلبات المتزامنة)
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('save', async function (next) {
   if (!this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear();
@@ -121,7 +121,6 @@ orderSchema.pre('save', async function(next) {
 
 // Indexes
 orderSchema.index({ user: 1, createdAt: -1 });
-orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ 'payment.status': 1 });
 

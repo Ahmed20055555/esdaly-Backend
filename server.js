@@ -61,14 +61,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 }));
 
 // Database Connection with Caching for Serverless
-let cachedConnection = null;
+let cachedPromise = null;
 
 const connectDB = async () => {
-  if (cachedConnection && mongoose.connection.readyState >= 1) {
-    return cachedConnection;
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
   }
 
-  try {
+  if (!cachedPromise) {
     const opts = {
       serverSelectionTimeoutMS: 10000,
       socketTimeoutMS: 45000,
@@ -80,14 +80,17 @@ const connectDB = async () => {
     }
 
     console.log('⏳ Connecting to MongoDB...');
-    cachedConnection = await mongoose.connect(process.env.MONGODB_URI, opts);
-    console.log('✅ MongoDB Connected Successfully');
-    return cachedConnection;
-  } catch (err) {
-    console.error('❌ MongoDB Connection Error:', err.message);
-    cachedConnection = null;
-    throw err;
+    cachedPromise = mongoose.connect(process.env.MONGODB_URI, opts).then(m => {
+      console.log('✅ MongoDB Connected Successfully');
+      return m;
+    }).catch(err => {
+      console.error('❌ MongoDB Connection Error:', err.message);
+      cachedPromise = null;
+      throw err;
+    });
   }
+
+  return cachedPromise;
 };
 
 // Middleware to ensure DB connection before processing requests
@@ -161,14 +164,23 @@ app.use((req, res) => {
 // Only start server in development (Vercel/Serverless handles this automatically)
 if (!isVercel && process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`🚀 Server is running on port ${PORT}`);
     console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+
+    // Connect to MongoDB immediately on startup to show the log
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('❌ Initial MongoDB connection failed:', err.message);
+    }
   }).on('error', (err) => {
     console.error('❌ Server startup error:', err);
   });
 } else {
   console.log(`✅ App initialized for ${isVercel ? 'Vercel' : 'Production'} environment`);
+  // Pre-connect for serverless if possible
+  connectDB().catch(err => console.error('❌ Serverless MongoDB connection failed:', err.message));
 }
 
 export default app;
