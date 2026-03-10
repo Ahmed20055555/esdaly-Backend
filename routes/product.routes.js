@@ -342,6 +342,8 @@ router.put('/:id/featured', protect, authorize('admin'), async (req, res) => {
   }
 });
 
+import { deleteFile } from '../utils/deleteFile.js';
+
 // @route   PUT /api/products/:id
 // @desc    Update product
 // @access  Private/Admin
@@ -355,17 +357,45 @@ router.put('/:id', protect, authorize('admin'), uploadMultiple.array('images', 1
       });
     }
 
-    const { name, description, shortDescription, price, comparePrice, category, stock, attributes, tags, isActive, isFeatured } = req.body;
+    const { name, description, shortDescription, price, comparePrice, category, stock, attributes, tags, isActive, isFeatured, existingImages: existingImagesRaw } = req.body;
+
+    // معالجة الصور الموجودة (التي بقيت ولم يتم حذفها في الفرونت إند)
+    let updatedImages = [];
+    if (existingImagesRaw) {
+      try {
+        const remainingImages = typeof existingImagesRaw === 'string' ? JSON.parse(existingImagesRaw) : existingImagesRaw;
+
+        // التحقق من الصور التي تم حذفها لمسح ملفاتها مادياً
+        const remainingUrls = remainingImages.map(img => img.url || img);
+        for (const img of product.images) {
+          if (!remainingUrls.includes(img.url)) {
+            console.log(`🗑️ Image removed by user, triggering physical deletion: ${img.url}`);
+            await deleteFile(img.url);
+          }
+        }
+
+        updatedImages = remainingImages.map(img => typeof img === 'string' ? { url: img, alt: name || product.name } : img);
+      } catch (e) {
+        console.error('Error parsing existingImages:', e);
+        updatedImages = product.images; // fallback
+      }
+    } else {
+      // إذا لم يتم إرسال existingImages، فهذا قد يعني أنه لم يتم إجراء تغييرات أو تم حذف الكل (حسب منطق الفرونت)
+      // لكن للأمان سنفترض أن الفرونت يرسل دائماً القائمة المتبقية
+      updatedImages = product.images;
+    }
 
     // Handle new images
     if (req.files && req.files.length > 0) {
       const newImages = req.files.map((file, index) => ({
         url: file.path.startsWith('http') ? file.path : `/uploads/products/${file.filename}`,
         alt: name || product.name,
-        isPrimary: product.images.length === 0 && index === 0
+        isPrimary: updatedImages.length === 0 && index === 0
       }));
-      product.images = [...product.images, ...newImages];
+      updatedImages = [...updatedImages, ...newImages];
     }
+
+    product.images = updatedImages;
 
     // Update fields
     if (name) product.name = name;
