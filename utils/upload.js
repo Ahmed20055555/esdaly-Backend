@@ -52,14 +52,14 @@ const localStorage = multer.diskStorage({
   }
 });
 
-// Use Cloudinary if configured, otherwise Local
-const useCloudinary = isProduction || !!process.env.CLOUDINARY_CLOUD_NAME;
+// Use Cloudinary if configured AND in production, otherwise Local
+const useCloudinary = isProduction && !!process.env.CLOUDINARY_CLOUD_NAME;
 console.log('DEBUG: Environment is', isProduction ? 'Production/Vercel' : 'Local');
 if (useCloudinary) {
   console.log('DEBUG: Using Cloudinary Storage');
   console.log('DEBUG: Cloudinary Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME ? 'Defined' : 'UNDEFINED');
 } else {
-  console.log('DEBUG: Using Local Storage');
+  console.log('DEBUG: Using Local Storage (Cloudinary disabled for Local Dev)');
 }
 const selectedStorage = useCloudinary ? cloudinaryStorage : localStorage;
 

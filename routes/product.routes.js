@@ -234,7 +234,7 @@ router.post('/', protect, authorize('admin'), uploadMultiple.array('images', 10)
     }
     // Handle images
     const images = req.files?.map((file, index) => ({
-      url: file.path || `/uploads/products/${file.filename}`,
+      url: file.path.startsWith('http') ? file.path : `/uploads/products/${file.filename}`,
       alt: name,
       isPrimary: index === 0
     })) || [];
@@ -360,7 +360,7 @@ router.put('/:id', protect, authorize('admin'), uploadMultiple.array('images', 1
     // Handle new images
     if (req.files && req.files.length > 0) {
       const newImages = req.files.map((file, index) => ({
-        url: `/uploads/products/${file.filename}`,
+        url: file.path.startsWith('http') ? file.path : `/uploads/products/${file.filename}`,
         alt: name || product.name,
         isPrimary: product.images.length === 0 && index === 0
       }));
