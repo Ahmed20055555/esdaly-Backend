@@ -279,4 +279,32 @@ router.put('/:id/status', protect, authorize('admin'), [
   }
 });
 
+// @route   DELETE /api/orders/:id
+// @desc    Delete order
+// @access  Private/Admin
+router.delete('/:id', protect, authorize('admin'), async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'الطلب غير موجود'
+      });
+    }
+
+    await order.deleteOne();
+
+    res.json({
+      success: true,
+      message: 'تم حذف الطلب بنجاح'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'خطأ في حذف الطلب',
+      error: error.message
+    });
+  }
+});
+
 export default router;
