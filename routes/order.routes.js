@@ -120,6 +120,9 @@ router.post('/', protect, [
       if (trackInventory && quantityAvailable < item.quantity) {
         return res.status(400).json({
           success: false,
+          errorCode: 'INSUFFICIENT_STOCK',
+          productId: product._id,
+          availableQuantity: quantityAvailable,
           message: `الكمية المتاحة من ${product.name} غير كافية (المتوفر: ${quantityAvailable})`
         });
       }
