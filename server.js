@@ -102,7 +102,7 @@ app.use(async (req, res, next) => {
     res.status(503).json({
       success: false,
       message: 'الخدمة غير متوفرة حالياً بسبب فشل الاتصال بقاعدة البيانات',
-      error: isVercel ? 'Database Connection Error' : err.message
+      error: err.message || 'Database Connection Error'
     });
   }
 });
